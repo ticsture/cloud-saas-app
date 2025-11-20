@@ -3,6 +3,7 @@
 import express, { Application, Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import prisma from './config/prisma';
 
 // 1. Load environment variables from .env file (in development)
 dotenv.config();
@@ -29,7 +30,24 @@ app.get('/health', (req: Request, res: Response) => {
     timestamp: new Date().toISOString(),
   });
 });
+// DB test route - just to verify Prisma + Postgres work
+app.get('/db-test', async (req: Request, res: Response) => {
+    try {
+      // Simple query: count users
+      const userCount = await prisma.user.count();
 
+      res.status(200).json({
+        status: 'ok',
+        userCount,
+      });
+    } catch (err) {
+      console.error('DB test failed:', err);
+      res.status(500).json({
+        status: 'error',
+        message: 'Database connection failed',
+      });
+    }
+  });
 // 6. Start the server
 app.listen(PORT, () => {
   console.log(`Backend server is running on http://localhost:${PORT}`);

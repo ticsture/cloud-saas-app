@@ -1,0 +1,94 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// A user of the system
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  password  String
+  name      String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  workspaces WorkspaceMember[]
+  tasks       Task[]          @relation("TaskAssignee")
+}
+
+// A workspace (like an organization or team)
+model Workspace {
+  id        String            @id @default(cuid())
+  name      String
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  members   WorkspaceMember[]
+  projects  Project[]
+}
+
+// Join table between User and Workspace (many-to-many with roles)
+model WorkspaceMember {
+  id          String    @id @default(cuid())
+  role        String    // e.g., "owner", "member"
+  createdAt   DateTime  @default(now())
+
+  userId      String
+  workspaceId String
+
+  user        User      @relation(fields: [userId], references: [id])
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@unique([userId, workspaceId]) // user can't be added twice to same workspace
+}
+
+// A project inside a workspace (e.g., "Website Revamp")
+model Project {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+
+  tasks       Task[]
+}
+
+// A task inside a project
+model Task {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  status      String    @default("todo")   // todo, in_progress, done
+  priority    String    @default("medium") // low, medium, high
+  dueDate     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id])
+
+  assigneeId  String?
+  assignee    User?     @relation("TaskAssignee", fields: [assigneeId], references: [id])
+
+  attachments Attachment[]
+}
+
+// Files attached to a task (we'll store S3 URLs later)
+model Attachment {
+  id        String   @id @default(cuid())
+  fileName  String
+  fileUrl   String   // S3 URL
+  createdAt DateTime @default(now())
+
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id])
+}
