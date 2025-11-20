@@ -4,6 +4,7 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import prisma from '../config/prisma';
 import { signToken } from '../utils/jwt';
+import { authMiddleware, AuthRequest } from '../middleware/authMiddleware';
 
 const router = Router();
 
@@ -74,6 +75,62 @@ router.post('/signup', async (req: Request, res: Response) => {
     console.error('Signup error:', error);
     return res.status(500).json({ message: 'Internal server error during signup' });
   }
+});
+// POST /auth/login
+router.post('/login', async (req: Request, res: Response) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
+
+    // Find user
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Compare password with hashed password in DB
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Invalid password' });
+    }
+
+    // Create JWT token
+    const token = signToken({
+      userId: user.id,
+      email: user.email,
+    });
+
+    return res.json({
+      message: 'Login successful',
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+      },
+      token,
+    });
+
+  } catch (error) {
+    console.error('Login error:', error);
+    return res.status(500).json({ message: 'Internal server error during login' });
+  }
+});
+router.get('/me', authMiddleware, async (req: AuthRequest, res: Response) => {
+  const userId = req.user?.userId;
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, email: true, name: true }
+  });
+
+  return res.json({ user });
 });
 
 export default router;
