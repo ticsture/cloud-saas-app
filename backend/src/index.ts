@@ -1,5 +1,5 @@
 // src/index.ts
-
+import authRoutes from './routes/authRoutes';
 import express, { Application, Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -21,6 +21,8 @@ app.use(express.json());
 
 // Enable CORS so frontend (different origin) can call this API
 app.use(cors());
+// Auth-related routes will be prefixed with /auth
+app.use('/auth', authRoutes);
 
 // 5. Health check route - useful for monitoring, load balancers, debugging
 app.get('/health', (req: Request, res: Response) => {
