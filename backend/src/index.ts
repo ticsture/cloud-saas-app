@@ -1,5 +1,9 @@
 // src/index.ts
 import authRoutes from './routes/authRoutes';
+import workspaceRoutes from './routes/workspaceRoutes';
+import projectRoutes from './routes/projectRoutes';
+
+
 import express, { Application, Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -23,6 +27,10 @@ app.use(express.json());
 app.use(cors());
 // Auth-related routes will be prefixed with /auth
 app.use('/auth', authRoutes);
+app.use('/workspaces', workspaceRoutes);
+app.use('/projects', projectRoutes);
+
+
 
 // 5. Health check route - useful for monitoring, load balancers, debugging
 app.get('/health', (req: Request, res: Response) => {
