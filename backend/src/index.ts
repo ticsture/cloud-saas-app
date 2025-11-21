@@ -2,6 +2,8 @@
 import authRoutes from './routes/authRoutes';
 import workspaceRoutes from './routes/workspaceRoutes';
 import projectRoutes from './routes/projectRoutes';
+import taskRoutes from './routes/taskRoutes';
+
 
 
 import express, { Application, Request, Response } from 'express';
@@ -29,6 +31,8 @@ app.use(cors());
 app.use('/auth', authRoutes);
 app.use('/workspaces', workspaceRoutes);
 app.use('/projects', projectRoutes);
+app.use('/tasks', taskRoutes);
+
 
 
 
