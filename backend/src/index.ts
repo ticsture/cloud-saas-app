@@ -3,6 +3,8 @@ import authRoutes from './routes/authRoutes';
 import workspaceRoutes from './routes/workspaceRoutes';
 import projectRoutes from './routes/projectRoutes';
 import taskRoutes from './routes/taskRoutes';
+import attachmentRoutes from './routes/attachmentRoutes';
+
 
 
 
@@ -32,6 +34,8 @@ app.use('/auth', authRoutes);
 app.use('/workspaces', workspaceRoutes);
 app.use('/projects', projectRoutes);
 app.use('/tasks', taskRoutes);
+app.use('/attachments', attachmentRoutes);
+
 
 
 
