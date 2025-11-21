@@ -6,6 +6,8 @@ import { PutObjectCommand } from '@aws-sdk/client-s3';
 import prisma from '../config/prisma';
 import { authMiddleware, AuthRequest } from '../middleware/authMiddleware';
 import { s3Client } from '../config/s3';
+import { GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const router = Router();
 
@@ -114,5 +116,62 @@ router.post(
     }
   }
 );
+// GET /attachments/:id/download
+router.get('/:id/download', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    const { id } = req.params;
 
+    // 1) Look up attachment in DB
+    const attachment = await prisma.attachment.findUnique({
+      where: { id },
+      include: {
+        task: {
+          include: {
+            project: {
+              include: {
+                workspace: {
+                  include: { members: true }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!attachment) {
+      return res.status(404).json({ message: 'Attachment not found' });
+    }
+
+    // 2) Check workspace membership — security
+    const isMember = attachment.task.project.workspace.members.some(
+      (m) => m.userId === userId
+    );
+
+    if (!isMember) {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+
+    // 3) Create a signed URL for downloading
+    const bucketName = process.env.AWS_S3_BUCKET_NAME!;
+    const command = new GetObjectCommand({
+      Bucket: bucketName,
+      Key: attachment.fileUrl
+    });
+
+    // This link will expire in 5 minutes
+    const signedUrl = await getSignedUrl(s3Client, command, {
+      expiresIn: 300
+    });
+
+    return res.json({
+      downloadUrl: signedUrl
+    });
+
+  } catch (error) {
+    console.error("Error generating signed URL:", error);
+    return res.status(500).json({ message: "Failed to generate download URL" });
+  }
+});
 export default router;
