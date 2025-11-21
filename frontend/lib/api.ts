@@ -3,21 +3,21 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 if (!API_URL) {
-  throw new Error('NEXT_PUBLIC_API_URL is not set');
+  throw new Error("NEXT_PUBLIC_API_URL is not set");
 }
 
+// Plain POST without auth – for login/signup etc.
 export async function apiPost<T>(path: string, body: any): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
   });
 
   if (!res.ok) {
-    // Try to read error message
-    let message = 'Request failed';
+    let message = "Request failed";
     try {
       const data = await res.json();
       if (data.message) message = data.message;
@@ -29,12 +29,22 @@ export async function apiPost<T>(path: string, body: any): Promise<T> {
 
   return res.json();
 }
-export async function apiGetAuth<T>(path: string): Promise<T> {
-  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
 
+// Helper: get auth token from localStorage (browser only)
+function getAuthToken(): string {
+  if (typeof window === "undefined") {
+    throw new Error("No window object (not in browser)");
+  }
+  const token = localStorage.getItem("authToken");
   if (!token) {
     throw new Error("No auth token found");
   }
+  return token;
+}
+
+// Auth GET
+export async function apiGetAuth<T>(path: string): Promise<T> {
+  const token = getAuthToken();
 
   const res = await fetch(`${API_URL}${path}`, {
     method: "GET",
@@ -50,18 +60,16 @@ export async function apiGetAuth<T>(path: string): Promise<T> {
 
   return res.json();
 }
-export async function apiPostAuth<T>(path: string, body: any): Promise<T> {
-  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
 
-  if (!token) {
-    throw new Error("No auth token found");
-  }
+// Auth POST (JSON)
+export async function apiPostAuth<T>(path: string, body: any): Promise<T> {
+  const token = getAuthToken();
 
   const res = await fetch(`${API_URL}${path}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(body),
   });
@@ -69,6 +77,27 @@ export async function apiPostAuth<T>(path: string, body: any): Promise<T> {
   if (!res.ok) {
     const data = await res.json().catch(() => null);
     throw new Error(data?.message || "Auth POST request failed");
+  }
+
+  return res.json();
+}
+
+// Auth PUT (JSON)
+export async function apiPutAuth<T>(path: string, body: any): Promise<T> {
+  const token = getAuthToken();
+
+  const res = await fetch(`${API_URL}${path}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.message || "Auth PUT request failed");
   }
 
   return res.json();
