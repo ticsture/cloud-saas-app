@@ -4,6 +4,7 @@
 
 import { FormEvent, useState } from "react";
 import { apiPost } from "@/lib/api";
+import { useRouter } from "next/navigation";
 
 interface LoginResponse {
   message: string;
@@ -16,6 +17,8 @@ interface LoginResponse {
 }
 
 export default function LoginPage() {
+  const router = useRouter(); // 👈 use the router hook
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -41,7 +44,12 @@ export default function LoginPage() {
       }
 
       setSuccess("Logged in successfully!");
-      // TODO: later we will redirect to /dashboard
+
+      // ✅ Redirect to dashboard after successful login
+      // small delay so user can see the success message
+      setTimeout(() => {
+        router.push("/dashboard");
+      }, 500);
     } catch (err: any) {
       setError(err.message || "Login failed");
     } finally {
