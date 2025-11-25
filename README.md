@@ -12,7 +12,7 @@
 [![Prisma](https://img.shields.io/badge/Prisma-2D3748?style=for-the-badge&logo=prisma&logoColor=white)](https://www.prisma.io/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 
-[Features](#features) • [Quick Start](#quick-start) • [Tech Stack](#tech-stack) • [Screenshots](#screenshots) • [Roadmap](#roadmap)
+[Features](#features) • [Quick Start](#quick-start) • [Tech Stack](#tech-stack)
 
 </div>
 
@@ -220,95 +220,6 @@ Frontend will run on `http://localhost:3000`
 
 ---
 
-## Design System
-
-TaskFlow features a professional design system inspired by Linear:
-
-- **Ultra-dark Theme** - Deep blacks with subtle gradients
-- **Code-inspired Accents** - Blue, green, yellow, purple highlights
-- **Glass Morphism** - Frosted glass effects and shadows
-- **Typography** - Geist Sans for UI, Geist Mono for code
-- **Animations** - Smooth transitions and micro-interactions
-- **Consistent Spacing** - 8px grid system
-
----
-
-## Screenshots
-
-<div align="center">
-
-### Landing Page
-*Beautiful hero section with gradient animations*
-
-### Authentication
-*Clean login/signup flows with form validation*
-
-### Dashboard
-*Comprehensive project overview with analytics*
-
-### Task Management
-*Kanban boards and list views with drag-and-drop*
-
-### Analytics
-*Real-time metrics and team insights*
-
-</div>
-
----
-
-## Roadmap
-
-### Phase 1: Foundation (Completed)
-- [x] Authentication system (JWT)
-- [x] Project & task CRUD operations
-- [x] File attachments with S3
-- [x] Real-time analytics dashboard
-- [x] Team insights and recommendations
-- [x] Linear-inspired dark UI
-
-### Phase 2: Collaboration (Q1 2026)
-- [ ] Real-time updates with WebSockets
-- [ ] Team member invitations
-- [ ] Comments and mentions
-- [ ] Activity feed and notifications
-- [ ] Role-based permissions
-
-### Phase 3: Advanced Features (Q2 2026)
-- [ ] Calendar and timeline views
-- [ ] Gantt charts
-- [ ] Time tracking
-- [ ] Custom fields and properties
-- [ ] Advanced search and filters
-
-### Phase 4: Integrations (Q3 2026)
-- [ ] Slack integration
-- [ ] GitHub/GitLab sync
-- [ ] Email notifications
-- [ ] Webhooks and API
-- [ ] Third-party apps marketplace
-
-### Phase 5: Mobile (Q4 2026)
-- [ ] React Native mobile app
-- [ ] Offline mode
-- [ ] Push notifications
-- [ ] Mobile-optimized UI
-
----
-
-## Contributing
-
-We welcome contributions! Please follow these steps:
-
-1. **Fork** the repository
-2. **Create** a feature branch (`git checkout -b feature/AmazingFeature`)
-3. **Commit** your changes (`git commit -m 'Add some AmazingFeature'`)
-4. **Push** to the branch (`git push origin feature/AmazingFeature`)
-5. **Open** a Pull Request
-
-Please ensure your code follows our coding standards and includes appropriate tests.
-
----
-
 ## License
 
 This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
@@ -320,23 +231,3 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 **Ticsture**
 - GitHub: [@ticsture](https://github.com/ticsture)
 - Repository: [cloud-saas-app](https://github.com/ticsture/cloud-saas-app)
-
----
-
-## Acknowledgments
-
-- Design inspiration from [Linear](https://linear.app)
-- UI components inspired by [Vercel](https://vercel.com) and [Notion](https://notion.so)
-- Built with modern web technologies
-
----
-
-<div align="center">
-
-### Star this repository if you find it helpful!
-
-**Built with passion by developers, for developers**
-
-[Report Bug](https://github.com/ticsture/cloud-saas-app/issues) • [Request Feature](https://github.com/ticsture/cloud-saas-app/issues) • [Documentation](https://github.com/ticsture/cloud-saas-app/wiki)
-
-</div>
