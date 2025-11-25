@@ -5,9 +5,8 @@ import { apiPost } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-interface LoginResponse {
+interface SignupResponse {
   message: string;
-  token: string;
   user: {
     id: string;
     email: string;
@@ -15,11 +14,12 @@ interface LoginResponse {
   };
 }
 
-export default function LoginPage() {
+export default function SignupPage() {
   const router = useRouter();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -31,25 +31,20 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const data = await apiPost<LoginResponse>("/auth/login", {
+      const data = await apiPost<SignupResponse>("/auth/signup", {
         email,
         password,
+        name: name || null,
       });
 
-      // Store token and user data in localStorage
-      if (typeof window !== "undefined") {
-        localStorage.setItem("authToken", data.token);
-        localStorage.setItem("userEmail", data.user.email);
-      }
-
-      setSuccess("Welcome back!");
-
-      // Redirect to dashboard after successful login
+      setSuccess("Account created successfully! Please log in.");
+      
+      // Redirect to login after successful signup
       setTimeout(() => {
-        router.push("/dashboard");
-      }, 800);
+        router.push("/login");
+      }, 1500);
     } catch (err: any) {
-      setError(err.message || "Login failed");
+      setError(err.message || "Signup failed");
     } finally {
       setLoading(false);
     }
@@ -65,8 +60,8 @@ export default function LoginPage() {
             </div>
             <span className="text-xl font-semibold text-primary">TaskFlow</span>
           </div>
-          <h1 className="text-3xl font-bold text-primary mb-2">Welcome back</h1>
-          <p className="text-secondary">Sign in to your account</p>
+          <h1 className="text-3xl font-bold text-primary mb-2">Create your account</h1>
+          <p className="text-secondary">Get started with TaskFlow today</p>
         </div>
 
         <div className="card p-8">
@@ -74,7 +69,20 @@ export default function LoginPage() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-primary mb-2">
-                  Email
+                  Name (optional)
+                </label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full px-4 py-3 bg-[var(--bg-base)] border border-[var(--border)] rounded-lg text-primary placeholder-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-transparent transition-colors"
+                  placeholder="Enter your name"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-primary mb-2">
+                  Email *
                 </label>
                 <input
                   type="email"
@@ -88,7 +96,7 @@ export default function LoginPage() {
 
               <div>
                 <label className="block text-sm font-medium text-primary mb-2">
-                  Password
+                  Password *
                 </label>
                 <input
                   type="password"
@@ -96,7 +104,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full px-4 py-3 bg-[var(--bg-base)] border border-[var(--border)] rounded-lg text-primary placeholder-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-transparent transition-colors"
-                  placeholder="Enter your password"
+                  placeholder="Create a password"
                 />
               </div>
             </div>
@@ -121,21 +129,21 @@ export default function LoginPage() {
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  Signing in...
+                  Creating account...
                 </span>
               ) : (
-                "Sign in"
+                "Create account"
               )}
             </button>
 
             <div className="text-center pt-4 border-t border-[var(--border)]">
               <p className="text-secondary text-sm">
-                Don't have an account?{" "}
+                Already have an account?{" "}
                 <Link 
-                  href="/signup" 
+                  href="/login" 
                   className="code-color-blue hover:underline font-medium"
                 >
-                  Sign up
+                  Sign in
                 </Link>
               </p>
             </div>

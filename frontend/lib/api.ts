@@ -102,3 +102,22 @@ export async function apiPutAuth<T>(path: string, body: any): Promise<T> {
 
   return res.json();
 }
+
+// Auth DELETE
+export async function apiDeleteAuth<T>(path: string): Promise<T> {
+  const token = getAuthToken();
+
+  const res = await fetch(`${API_URL}${path}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.message || "Auth DELETE request failed");
+  }
+
+  return res.json();
+}

@@ -2,6 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { apiGetAuth, apiPostAuth, apiPutAuth } from "@/lib/api";
+import { useRouter } from "next/navigation";
+import useAuth from "@/lib/useAuth";
+import ProjectCard from "@/components/ProjectCard";
+import AnalyticsCard from "@/components/AnalyticsCard";
+import TeamInsights from "@/components/TeamInsights";
 
 interface Workspace {
   id: string;
@@ -35,6 +40,8 @@ type ViewMode = "list" | "board";
 const API_URL = process.env.NEXT_PUBLIC_API_URL!;
 
 export default function DashboardPage() {
+  const router = useRouter();
+  const { isAuthenticated, isLoading: authLoading, userEmail, logout } = useAuth();
   const [loading, setLoading] = useState(true);
 
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
@@ -50,6 +57,13 @@ export default function DashboardPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const [viewMode, setViewMode] = useState<ViewMode>("list");
+  // Project Management
+  const [showCreateProject, setShowCreateProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectDescription, setNewProjectDescription] = useState("");
+  const [projectTemplate, setProjectTemplate] = useState("blank");
+  const [creatingProject, setCreatingProject] = useState(false);
+  
   // Edit/Delete state
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
@@ -62,6 +76,16 @@ export default function DashboardPage() {
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskDescription, setNewTaskDescription] = useState("");
   const [newTaskPriority, setNewTaskPriority] = useState("medium");
+
+  // -------------------------------
+  // Authentication Check
+  // -------------------------------
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.push("/login");
+      return;
+    }
+  }, [isAuthenticated, authLoading, router]);
 
   // -------------------------------
   // 1. Load Workspaces
@@ -289,6 +313,46 @@ export default function DashboardPage() {
   }
 
   // -------------------------------
+  // Create Project
+  // -------------------------------
+  async function handleCreateProject(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedWorkspace) return setError("Select a workspace first");
+    if (!newProjectName.trim()) return setError("Project name required");
+
+    try {
+      setCreatingProject(true);
+      await apiPostAuth<{ project: Project }>("/projects", {
+        name: newProjectName,
+        description: newProjectDescription || null,
+        workspaceId: selectedWorkspace,
+      });
+
+      setNewProjectName("");
+      setNewProjectDescription("");
+      setProjectTemplate("blank");
+      setShowCreateProject(false);
+      setSuccessMessage("Project created successfully!");
+      setTimeout(() => setSuccessMessage(null), 3000);
+      
+      // Refresh projects list
+      if (selectedWorkspace) {
+        const data = await apiGetAuth<{ projects: Project[] }>(
+          `/projects?workspaceId=${selectedWorkspace}`
+        );
+        setProjects(data.projects);
+        if (data.projects.length > 0) {
+          setSelectedProject(data.projects[data.projects.length - 1].id); // Select newly created project
+        }
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setCreatingProject(false);
+    }
+  }
+
+  // -------------------------------
   // Create Task
   // -------------------------------
   async function handleCreateTask(e: React.FormEvent) {
@@ -321,53 +385,164 @@ export default function DashboardPage() {
   // -------------------------------
   // UI
   // -------------------------------
+  // Show loading while checking authentication
+  if (authLoading) {
+    return (
+      <div className="min-h-screen linear-bg flex items-center justify-center">
+        <div className="flex items-center gap-3">
+          <div className="w-6 h-6 border-2 border-[var(--ring)]/30 border-t-[var(--ring)] rounded-full animate-spin"></div>
+          <span className="text-primary">Checking authentication...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // If not authenticated, the useEffect will handle redirect
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen linear-bg flex items-center justify-center">
+        <div className="flex items-center gap-3">
+          <div className="w-6 h-6 border-2 border-[var(--ring)]/30 border-t-[var(--ring)] rounded-full animate-spin"></div>
+          <span className="text-primary">Redirecting...</span>
+        </div>
+      </div>
+    );
+  }
+
   if (loading && !selectedWorkspace) {
     return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
-        Loading dashboard...
+      <div className="min-h-screen linear-bg flex items-center justify-center">
+        <div className="flex items-center gap-3">
+          <div className="w-6 h-6 border-2 border-[var(--ring)]/30 border-t-[var(--ring)] rounded-full animate-spin"></div>
+          <span className="text-primary">Loading dashboard...</span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex">
+    <div className="min-h-screen text-primary flex">
 
       {/* LEFT SIDEBAR */}
-      <div className="w-72 bg-slate-900 border-r border-slate-800 p-4 flex flex-col">
-        <h2 className="text-xl font-semibold mb-3">Workspaces</h2>
+      <div className="w-80 sidebar p-6 flex flex-col">
+        {/* Workspace Section */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-primary">Workspaces</h2>
+            <div className="w-2 h-2 rounded-full bg-[var(--code-green)] animate-pulse" title="Active"></div>
+          </div>
 
-        <div className="space-y-1 mb-6">
-          {workspaces.map((ws) => (
-            <button
-              key={ws.id}
-              onClick={() => setSelectedWorkspace(ws.id)}
-              className={`w-full text-left px-3 py-2 rounded-lg text-sm ${
-                selectedWorkspace === ws.id
-                  ? "bg-emerald-600"
-                  : "bg-slate-800 hover:bg-slate-700"
-              }`}
-            >
-              {ws.name}
-            </button>
-          ))}
+          <div className="space-y-2">
+            {workspaces.map((ws) => (
+              <button
+                key={ws.id}
+                onClick={() => setSelectedWorkspace(ws.id)}
+                className={`w-full text-left btn-base text-sm transition-all ${
+                  selectedWorkspace === ws.id ? 'btn-accent' : 'hover:scale-[1.02]'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-6 h-6 rounded-md bg-gradient-to-br from-[var(--code-blue)] to-[var(--code-purple)] flex items-center justify-center">
+                    <span className="text-white font-bold text-xs">{ws.name[0].toUpperCase()}</span>
+                  </div>
+                  <span className="truncate">{ws.name}</span>
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
 
-        <h2 className="text-xl font-semibold mb-3">Projects</h2>
-
-        <div className="space-y-1 flex-1 overflow-y-auto">
-          {projects.map((p) => (
+        {/* Projects Section */}
+        <div className="flex-1 overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-primary">Projects</h2>
             <button
-              key={p.id}
-              onClick={() => setSelectedProject(p.id)}
-              className={`w-full text-left px-3 py-2 rounded-lg text-sm ${
-                selectedProject === p.id
-                  ? "bg-emerald-600"
-                  : "bg-slate-800 hover:bg-slate-700"
-              }`}
+              onClick={() => setShowCreateProject(true)}
+              className="btn-base btn-accent text-xs px-3 py-1.5 transition-all hover:scale-105"
+              disabled={!selectedWorkspace}
+              title={!selectedWorkspace ? "Select a workspace first" : "Create new project"}
             >
-              {p.name}
+              + New
             </button>
-          ))}
+          </div>
+
+          {!selectedWorkspace ? (
+            <div className="text-center py-8">
+              <div className="w-12 h-12 rounded-lg bg-[var(--bg-hover)] mx-auto mb-3 flex items-center justify-center">
+                <span className="text-2xl">🏢</span>
+              </div>
+              <p className="text-faint text-sm">Select a workspace to view projects</p>
+            </div>
+          ) : projects.length === 0 ? (
+            <div className="text-center py-8">
+              <div className="w-12 h-12 rounded-lg bg-[var(--bg-hover)] mx-auto mb-3 flex items-center justify-center">
+                <span className="text-2xl">📁</span>
+              </div>
+              <p className="text-faint text-sm mb-3">No projects yet</p>
+              <button
+                onClick={() => setShowCreateProject(true)}
+                className="btn-base btn-accent text-xs px-4 py-2"
+              >
+                Create your first project
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2 overflow-y-auto flex-1">
+              {projects.map((p) => (
+                <ProjectCard
+                  key={p.id}
+                  project={p}
+                  taskCount={tasks.filter(t => projects.find(proj => proj.id === selectedProject)?.id === selectedProject).length}
+                  onUpdate={async () => {
+                    if (selectedWorkspace) {
+                      const data = await apiGetAuth<{ projects: Project[] }>(
+                        `/projects?workspaceId=${selectedWorkspace}`
+                      );
+                      setProjects(data.projects);
+                      // If current project was deleted, clear selection
+                      if (!data.projects.find(p => p.id === selectedProject)) {
+                        setSelectedProject(null);
+                        setTasks([]);
+                      }
+                    }
+                  }}
+                  onSelect={setSelectedProject}
+                  isSelected={selectedProject === p.id}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* User Info & Stats */}
+        <div className="border-t border-[var(--border)] pt-4 mt-4">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--ring)] to-[var(--code-purple)] flex items-center justify-center">
+              <span className="text-white font-bold text-xs">{userEmail?.[0]?.toUpperCase()}</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium text-primary truncate">{userEmail}</div>
+              <div className="text-xs text-faint">Member</div>
+            </div>
+            <button
+              onClick={logout}
+              className="btn-base text-xs px-2 py-1 opacity-60 hover:opacity-100"
+              title="Logout"
+            >
+              ↗
+            </button>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="text-center">
+              <div className="text-primary font-medium">{projects.length}</div>
+              <div className="text-faint">Projects</div>
+            </div>
+            <div className="text-center">
+              <div className="text-primary font-medium">{tasks.length}</div>
+              <div className="text-faint">Tasks</div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -375,38 +550,110 @@ export default function DashboardPage() {
       <div className="flex-1 p-6 flex flex-col gap-4">
 
         {/* TOP BAR */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold">Tasks</h1>
-            <p className="text-sm text-slate-400">
-              Workspace: {workspaces.find(w => w.id === selectedWorkspace)?.name} ·
-              Project: {projects.find(p => p.id === selectedProject)?.name}
-            </p>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-primary flex items-center gap-3">
+                {projects.find(p => p.id === selectedProject)?.name || 'Tasks'}
+                {selectedProject && (
+                  <span className="text-sm font-normal pill">
+                    {tasks.length} {tasks.length === 1 ? 'task' : 'tasks'}
+                  </span>
+                )}
+              </h1>
+              <div className="flex items-center gap-2 text-sm text-secondary mt-1">
+                <span>{workspaces.find(w => w.id === selectedWorkspace)?.name}</span>
+                {selectedProject && (
+                  <>
+                    <span className="text-faint">•</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-[var(--code-green)]"></div>
+                      <span>Active Project</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+            
+            {/* Quick Stats */}
+            {selectedProject && (
+              <div className="hidden md:flex items-center gap-4 ml-8">
+                <div className="text-center">
+                  <div className="text-lg font-bold code-color-blue">{tasksTodo.length}</div>
+                  <div className="text-xs text-faint">To Do</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-bold code-color-yellow">{tasksInProgress.length}</div>
+                  <div className="text-xs text-faint">In Progress</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-bold code-color-green">{tasksDone.length}</div>
+                  <div className="text-xs text-faint">Completed</div>
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className="inline-flex items-center bg-slate-900 border border-slate-700 rounded-lg p-1">
-            <button
-              onClick={() => setViewMode("list")}
-              className={`px-3 py-1 text-xs rounded ${
-                viewMode === "list"
-                  ? "bg-emerald-600"
-                  : "text-slate-300 hover:bg-slate-800"
-              }`}
-            >
-              List View
-            </button>
-            <button
-              onClick={() => setViewMode("board")}
-              className={`px-3 py-1 text-xs rounded ${
-                viewMode === "board"
-                  ? "bg-emerald-600"
-                  : "text-slate-300 hover:bg-slate-800"
-              }`}
-            >
-              Board View
-            </button>
+          <div className="flex items-center gap-3">
+            {/* View Toggle */}
+            <div className="inline-flex items-center card p-1">
+              <button
+                onClick={() => setViewMode("list")}
+                className={`btn-base text-xs ${viewMode === 'list' ? 'btn-accent' : ''}`}
+              >
+                📋 List
+              </button>
+              <button
+                onClick={() => setViewMode("board")}
+                className={`btn-base text-xs ${viewMode === 'board' ? 'btn-accent' : ''}`}
+              >
+                📊 Board
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* ANALYTICS SECTION */}
+        {selectedProject && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <AnalyticsCard
+              title="Total Tasks"
+              value={tasks.length}
+              icon="📊"
+              trend={{ direction: "up", percentage: 12 }}
+              color="blue"
+            />
+            <AnalyticsCard
+              title="In Progress"
+              value={tasksInProgress.length}
+              icon="🔄"
+              trend={{ direction: "up", percentage: 8 }}
+              color="yellow"
+            />
+            <AnalyticsCard
+              title="Completed"
+              value={tasksDone.length}
+              icon="✅"
+              trend={{ direction: "up", percentage: 23 }}
+              color="green"
+            />
+            <AnalyticsCard
+              title="Completion Rate"
+              value={Math.round(tasks.length ? (tasksDone.length / tasks.length) * 100 : 0)}
+              icon="🎯"
+              trend={{ 
+                direction: tasksDone.length > tasksInProgress.length ? "up" : "down", 
+                percentage: 15 
+              }}
+              color="purple"
+            />
+          </div>
+        )}
+
+        {/* TEAM INSIGHTS */}
+        {selectedProject && tasks.length > 0 && (
+          <TeamInsights tasks={tasks} projects={projects} />
+        )}
 
         {/* MESSAGES */}
         {error && (
@@ -422,58 +669,86 @@ export default function DashboardPage() {
         )}
 
         {/* CREATE TASK */}
-        <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
-          <h2 className="text-lg font-medium mb-3">Create New Task</h2>
-
-          <form onSubmit={handleCreateTask} className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <div className="md:col-span-2">
-              <label className="text-xs text-slate-400 mb-1 block">Title</label>
-              <input
-                className="w-full px-3 py-2 bg-slate-800 text-white rounded-lg border border-slate-700"
-                value={newTaskTitle}
-                onChange={(e) => setNewTaskTitle(e.target.value)}
-              />
+        {selectedProject ? (
+          <div className="card p-6 mb-6">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-xl">✨</span>
+              <h2 className="text-lg font-semibold text-primary">Create New Task</h2>
             </div>
 
-            <div>
-              <label className="text-xs text-slate-400 mb-1 block">Priority</label>
-              <select
-                className="w-full px-3 py-2 bg-slate-800 text-white rounded-lg border border-slate-700"
-                value={newTaskPriority}
-                onChange={(e) => setNewTaskPriority(e.target.value)}
-              >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-              </select>
-            </div>
+            <form onSubmit={handleCreateTask} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-secondary mb-2">Task Title</label>
+                  <input
+                    className="w-full px-4 py-3 bg-[var(--bg-base)] border border-[var(--border)] rounded-lg text-primary placeholder-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-transparent transition-colors"
+                    value={newTaskTitle}
+                    onChange={(e) => setNewTaskTitle(e.target.value)}
+                    placeholder="What needs to be done?"
+                  />
+                </div>
 
+                <div>
+                  <label className="block text-sm font-medium text-secondary mb-2">Priority</label>
+                  <select
+                    className="w-full px-4 py-3 bg-[var(--bg-base)] border border-[var(--border)] rounded-lg text-primary focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-transparent transition-colors"
+                    value={newTaskPriority}
+                    onChange={(e) => setNewTaskPriority(e.target.value)}
+                  >
+                    <option value="low">🟢 Low</option>
+                    <option value="medium">🟡 Medium</option>
+                    <option value="high">🔴 High</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-secondary mb-2">
+                  Description (optional)
+                </label>
+                <textarea
+                  className="w-full px-4 py-3 bg-[var(--bg-base)] border border-[var(--border)] rounded-lg text-primary placeholder-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-transparent transition-colors"
+                  rows={3}
+                  value={newTaskDescription}
+                  onChange={(e) => setNewTaskDescription(e.target.value)}
+                  placeholder="Add more details about this task..."
+                />
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  className="btn-base btn-accent text-sm px-6 py-3 font-medium transition-all hover:scale-[1.02]"
+                >
+                  ➕ Create Task
+                </button>
+              </div>
+            </form>
+          </div>
+        ) : (
+          <div className="card p-8 mb-6 text-center">
+            <div className="w-16 h-16 rounded-lg bg-[var(--bg-hover)] mx-auto mb-4 flex items-center justify-center">
+              <span className="text-3xl">🎯</span>
+            </div>
+            <h3 className="text-lg font-semibold text-primary mb-2">Select a Project</h3>
+            <p className="text-secondary mb-4">
+              Choose a project from the sidebar to start creating and managing tasks.
+            </p>
             <button
-              type="submit"
-              className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg py-2 text-sm font-medium"
+              onClick={() => setShowCreateProject(true)}
+              className="btn-base btn-accent text-sm px-6 py-3"
+              disabled={!selectedWorkspace}
             >
-              Add Task
+              {selectedWorkspace ? "Create New Project" : "Select Workspace First"}
             </button>
-
-            <div className="md:col-span-4">
-              <label className="text-xs text-slate-400 mb-1 block">
-                Description (optional)
-              </label>
-              <textarea
-                className="w-full px-3 py-2 bg-slate-800 text-white rounded-lg border border-slate-700"
-                rows={2}
-                value={newTaskDescription}
-                onChange={(e) => setNewTaskDescription(e.target.value)}
-              />
-            </div>
-          </form>
-        </div>
+          </div>
+        )}
 
         {/* --------------------------- */}
         {/* LIST VIEW */}
         {/* --------------------------- */}
         {viewMode === "list" && (
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex-1 overflow-y-auto">
+          <div className="card p-4 flex-1 overflow-y-auto">
             {tasks.length === 0 ? (
               <p className="text-slate-400">No tasks yet.</p>
             ) : (
@@ -482,21 +757,17 @@ export default function DashboardPage() {
                   <div
                     key={task.id}
                     onMouseEnter={() => loadAttachments(task.id)}
-                    className="group bg-slate-800/90 rounded-lg px-4 py-4 border border-slate-700/60 hover:border-emerald-600/60 transition-colors flex flex-col gap-3 shadow-sm"
+                    className="group card card-hover px-4 py-4 flex flex-col gap-3"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="space-y-1">
                         <h3 className="text-sm font-semibold tracking-wide flex items-center gap-2">
                           {task.title}
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 capitalize">
-                            {task.status.replace("_", " ")}
-                          </span>
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-700/70 text-slate-300 capitalize">
-                            {task.priority || "medium"}
-                          </span>
+                          <span className={`pill status-${task.status}`}>{task.status.replace('_',' ')}</span>
+                          <span className="pill">{task.priority || 'medium'}</span>
                         </h3>
-                        <p className="text-xs text-slate-500">
-                          ID: <span className="font-mono text-slate-300/80">{task.id.slice(0,8)}</span>
+                        <p className="text-xs text-faint">
+                          ID: <span className="mono-id text-secondary">{task.id.slice(0,8)}</span>
                         </p>
                         {task.description && (
                           <p className="text-[11px] text-slate-400 line-clamp-2 max-w-[480px]">{task.description}</p>
@@ -505,15 +776,15 @@ export default function DashboardPage() {
                       <div className="flex gap-2 items-center">
                         <button
                           onClick={() => openEditTask(task)}
-                          className="px-2 py-1 text-xs rounded bg-slate-700/70 hover:bg-slate-600"
+                          className="btn-base text-xs"
                           title="Edit"
                         >Edit</button>
                         <button
                           onClick={() => handleDeleteTask(task.id)}
-                          className="px-2 py-1 text-xs rounded bg-red-600/80 hover:bg-red-600"
+                          className="btn-base btn-danger text-xs"
                           title="Delete"
                         >Del</button>
-                        <label className="px-2 py-1 text-xs rounded bg-slate-700/70 hover:bg-slate-600 cursor-pointer transition-colors">
+                        <label className="btn-base text-xs cursor-pointer">
                           Upload
                           <input
                             type="file"
@@ -529,22 +800,16 @@ export default function DashboardPage() {
                         </label>
                         <button
                           onClick={() => updateTaskStatus(task.id, "todo")}
-                          className="px-2 py-1 text-xs rounded bg-slate-700/70 hover:bg-slate-600"
-                        >
-                          To Do
-                        </button>
+                          className="btn-base text-xs"
+                        >To Do</button>
                         <button
                           onClick={() => updateTaskStatus(task.id, "in_progress")}
-                          className="px-2 py-1 text-xs rounded bg-slate-700/70 hover:bg-slate-600"
-                        >
-                          In Progress
-                        </button>
+                          className="btn-base text-xs"
+                        >In Progress</button>
                         <button
                           onClick={() => updateTaskStatus(task.id, "done")}
-                          className="px-2 py-1 text-xs rounded bg-emerald-600 hover:bg-emerald-500"
-                        >
-                          Done
-                        </button>
+                          className="btn-base btn-accent text-xs"
+                        >Done</button>
                       </div>
                     </div>
                     <div className="border-t border-slate-700/50 pt-2">
@@ -559,20 +824,17 @@ export default function DashboardPage() {
                           <button
                             key={att.id}
                             onClick={() => downloadAttachment(att.id)}
-                            className="group/att relative px-3 py-1.5 text-[11px] rounded-md bg-slate-750/70 hover:bg-slate-700 border border-slate-600/60 hover:border-emerald-500/60 flex items-center gap-2 font-medium text-slate-200 transition-colors"
+                            className="btn-base text-[11px] px-3 py-1.5"
                             title={`Download ${att.fileName}`}
                           >
                             <span className="truncate max-w-[120px]">{att.fileName}</span>
-                            <span className="text-emerald-400 opacity-0 group-hover/att:opacity-100 transition-opacity">↓</span>
                           </button>
                         ))}
                         {!attachmentsMap[task.id] && !attachmentsLoading[task.id] && (
                           <button
                             onClick={() => loadAttachments(task.id)}
-                            className="px-3 py-1.5 text-[11px] rounded-md bg-slate-750/70 hover:bg-slate-700 border border-dashed border-slate-600/60 text-slate-300"
-                          >
-                            Load
-                          </button>
+                            className="btn-base text-[11px]"
+                          >Load</button>
                         )}
                         {attachmentsMap[task.id] && attachmentsMap[task.id].length === 0 && (
                           <span className="text-[11px] text-slate-500">None</span>
@@ -593,163 +855,177 @@ export default function DashboardPage() {
           <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
 
             {/* COLUMN: To Do */}
-            <div className="bg-slate-900/80 backdrop-blur border border-slate-800 rounded-xl p-3">
-              <h3 className="font-semibold mb-2">To Do</h3>
-              <div className="space-y-2">
+            <div className="card p-4">
+              <h3 className="font-semibold mb-3 flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-[var(--code-blue)]"></div>
+                To Do
+                <span className="pill text-xs ml-auto">{tasksTodo.length}</span>
+              </h3>
+              <div className="space-y-3">
                 {tasksTodo.map((task) => (
                   <div
                     key={task.id}
                     onMouseEnter={() => loadAttachments(task.id)}
-                    className="bg-slate-800/80 rounded-lg p-3 border border-slate-700/60 hover:border-emerald-600/60 transition-colors flex flex-col gap-2"
+                    className="card card-hover p-4 transition-all hover:scale-[1.02] cursor-pointer"
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <h4 className="font-medium text-sm mb-1 flex-1">{task.title}</h4>
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <h4 className="font-medium text-sm text-primary">{task.title}</h4>
                       <div className="flex gap-1">
                         <button
                           onClick={() => openEditTask(task)}
-                          className="px-2 py-1 text-[10px] rounded bg-slate-700 hover:bg-slate-600"
+                          className="btn-base text-[10px] px-1.5 py-1"
                           title="Edit"
-                        >E</button>
+                        >✏️</button>
                         <button
                           onClick={() => handleDeleteTask(task.id)}
-                          className="px-2 py-1 text-[10px] rounded bg-red-600/80 hover:bg-red-600"
+                          className="btn-base btn-danger text-[10px] px-1.5 py-1"
                           title="Delete"
-                        >X</button>
+                        >🗑️</button>
                       </div>
                     </div>
-                    <p className="text-xs text-slate-400 mb-2">
-                      Priority: {task.priority}
-                    </p>
+                    
+                    {task.description && (
+                      <p className="text-xs text-secondary line-clamp-2 mb-3">{task.description}</p>
+                    )}
+                    
+                    <div className="flex items-center justify-between mb-3">
+                      <span className={`pill status-${task.status}`}>{task.priority || 'medium'}</span>
+                      <span className="mono-id text-faint">{task.id.slice(0,6)}</span>
+                    </div>
 
-                    <label className="px-2 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 cursor-pointer mr-2">
-                      Upload
-                      <input
-                        type="file"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            uploadAttachment(task.id, file);
-                            e.target.value = "";
-                          }
-                        }}
-                      />
-                    </label>
-
-                    <button
-                      onClick={() => updateTaskStatus(task.id, "in_progress")}
-                      className="px-2 py-1 text-xs rounded bg-emerald-600 hover:bg-emerald-500"
-                    >
-                      Move to In Progress
-                    </button>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {(attachmentsMap[task.id] || []).map((att) => (
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      <label className="btn-base text-[10px] px-2 py-1 cursor-pointer">
+                        📎
+                        <input
+                          type="file"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              uploadAttachment(task.id, file);
+                              e.target.value = "";
+                            }
+                          }}
+                        />
+                      </label>
+                      
+                      {(attachmentsMap[task.id] || []).slice(0, 2).map((att) => (
                         <button
                           key={att.id}
                           onClick={() => downloadAttachment(att.id)}
-                          className="px-2 py-1 text-[10px] rounded bg-slate-700/70 hover:bg-slate-600 border border-slate-600/50 hover:border-emerald-500/60 transition-colors"
+                          className="btn-base text-[10px] px-2 py-1 max-w-[80px] truncate"
+                          title={att.fileName}
                         >
                           {att.fileName}
                         </button>
                       ))}
+                      
                       {!attachmentsMap[task.id] && !attachmentsLoading[task.id] && (
                         <button
                           onClick={() => loadAttachments(task.id)}
-                          className="px-2 py-1 text-[10px] rounded bg-slate-750/70 hover:bg-slate-700 border border-dashed border-slate-600/60"
+                          className="btn-base text-[10px] px-2 py-1 opacity-60"
                         >Load</button>
                       )}
-                      {attachmentsLoading[task.id] && (
-                        <span className="text-[10px] text-emerald-400 animate-pulse">Loading…</span>
-                      )}
-                      {attachmentsMap[task.id] && attachmentsMap[task.id].length === 0 && (
-                        <span className="text-[10px] text-slate-500">No attachments</span>
-                      )}
                     </div>
+
+                    <button
+                      onClick={() => updateTaskStatus(task.id, "in_progress")}
+                      className="w-full btn-base btn-accent text-xs py-2"
+                    >
+                      Start Working →
+                    </button>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* COLUMN: In Progress */}
-            <div className="bg-slate-900/80 backdrop-blur border border-slate-800 rounded-xl p-3">
-              <h3 className="font-semibold mb-2">In Progress</h3>
-              <div className="space-y-2">
+            <div className="card p-4">
+              <h3 className="font-semibold mb-3 flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-[var(--code-yellow)]"></div>
+                In Progress
+                <span className="pill text-xs ml-auto">{tasksInProgress.length}</span>
+              </h3>
+              <div className="space-y-3">
                 {tasksInProgress.map((task) => (
                   <div
                     key={task.id}
                     onMouseEnter={() => loadAttachments(task.id)}
-                    className="bg-slate-800/80 rounded-lg p-3 border border-slate-700/60 hover:border-emerald-600/60 transition-colors flex flex-col gap-2"
+                    className="card card-hover p-4 transition-all hover:scale-[1.02] cursor-pointer border-l-4 border-[var(--code-yellow)]"
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <h4 className="font-medium text-sm mb-1 flex-1">{task.title}</h4>
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <h4 className="font-medium text-sm text-primary">{task.title}</h4>
                       <div className="flex gap-1">
                         <button
                           onClick={() => openEditTask(task)}
-                          className="px-2 py-1 text-[10px] rounded bg-slate-700 hover:bg-slate-600"
+                          className="btn-base text-[10px] px-1.5 py-1"
                           title="Edit"
-                        >E</button>
+                        >✏️</button>
                         <button
                           onClick={() => handleDeleteTask(task.id)}
-                          className="px-2 py-1 text-[10px] rounded bg-red-600/80 hover:bg-red-600"
+                          className="btn-base btn-danger text-[10px] px-1.5 py-1"
                           title="Delete"
-                        >X</button>
+                        >🗑️</button>
                       </div>
                     </div>
-                    <p className="text-xs text-slate-400 mb-2">
-                      Priority: {task.priority}
-                    </p>
-
-                    <label className="px-2 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 cursor-pointer mr-2">
-                      Upload
-                      <input
-                        type="file"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            uploadAttachment(task.id, file);
-                            e.target.value = "";
-                          }
-                        }}
-                      />
-                    </label>
-
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => updateTaskStatus(task.id, "todo")}
-                        className="px-2 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600"
-                      >
-                        Back
-                      </button>
-                      <button
-                        onClick={() => updateTaskStatus(task.id, "done")}
-                        className="px-2 py-1 text-xs rounded bg-emerald-600 hover:bg-emerald-500"
-                      >
-                        Done
-                      </button>
+                    
+                    {task.description && (
+                      <p className="text-xs text-secondary line-clamp-2 mb-3">{task.description}</p>
+                    )}
+                    
+                    <div className="flex items-center justify-between mb-3">
+                      <span className={`pill status-${task.status}`}>{task.priority || 'medium'}</span>
+                      <span className="mono-id text-faint">{task.id.slice(0,6)}</span>
                     </div>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {(attachmentsMap[task.id] || []).map((att) => (
+
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      <label className="btn-base text-[10px] px-2 py-1 cursor-pointer">
+                        📎
+                        <input
+                          type="file"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              uploadAttachment(task.id, file);
+                              e.target.value = "";
+                            }
+                          }}
+                        />
+                      </label>
+                      
+                      {(attachmentsMap[task.id] || []).slice(0, 2).map((att) => (
                         <button
                           key={att.id}
                           onClick={() => downloadAttachment(att.id)}
-                          className="px-2 py-1 text-[10px] rounded bg-slate-700/70 hover:bg-slate-600 border border-slate-600/50 hover:border-emerald-500/60 transition-colors"
+                          className="btn-base text-[10px] px-2 py-1 max-w-[80px] truncate"
+                          title={att.fileName}
                         >
                           {att.fileName}
                         </button>
                       ))}
+                      
                       {!attachmentsMap[task.id] && !attachmentsLoading[task.id] && (
                         <button
                           onClick={() => loadAttachments(task.id)}
-                          className="px-2 py-1 text-[10px] rounded bg-slate-750/70 hover:bg-slate-700 border border-dashed border-slate-600/60"
+                          className="btn-base text-[10px] px-2 py-1 opacity-60"
                         >Load</button>
                       )}
-                      {attachmentsLoading[task.id] && (
-                        <span className="text-[10px] text-emerald-400 animate-pulse">Loading…</span>
-                      )}
-                      {attachmentsMap[task.id] && attachmentsMap[task.id].length === 0 && (
-                        <span className="text-[10px] text-slate-500">No attachments</span>
-                      )}
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => updateTaskStatus(task.id, "todo")}
+                        className="flex-1 btn-base text-xs py-2"
+                      >
+                        ← Back
+                      </button>
+                      <button
+                        onClick={() => updateTaskStatus(task.id, "done")}
+                        className="flex-1 btn-base btn-accent text-xs py-2"
+                      >
+                        Complete ✓
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -757,78 +1033,70 @@ export default function DashboardPage() {
             </div>
 
             {/* COLUMN: Done */}
-            <div className="bg-slate-900/80 backdrop-blur border border-slate-800 rounded-xl p-3">
-              <h3 className="font-semibold mb-2">Done</h3>
-              <div className="space-y-2">
+            <div className="card p-4">
+              <h3 className="font-semibold mb-3 flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-[var(--code-green)]"></div>
+                Done
+                <span className="pill text-xs ml-auto">{tasksDone.length}</span>
+              </h3>
+              <div className="space-y-3">
                 {tasksDone.map((task) => (
                   <div
                     key={task.id}
                     onMouseEnter={() => loadAttachments(task.id)}
-                    className="bg-slate-800/80 rounded-lg p-3 border border-slate-700/60 hover:border-emerald-600/60 transition-colors flex flex-col gap-2"
+                    className="card card-hover p-4 transition-all hover:scale-[1.02] cursor-pointer border-l-4 border-[var(--code-green)] opacity-75 hover:opacity-100"
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <h4 className="font-medium text-sm mb-1 flex-1">{task.title}</h4>
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <h4 className="font-medium text-sm text-primary line-through">{task.title}</h4>
                       <div className="flex gap-1">
                         <button
                           onClick={() => openEditTask(task)}
-                          className="px-2 py-1 text-[10px] rounded bg-slate-700 hover:bg-slate-600"
+                          className="btn-base text-[10px] px-1.5 py-1"
                           title="Edit"
-                        >E</button>
+                        >✏️</button>
                         <button
                           onClick={() => handleDeleteTask(task.id)}
-                          className="px-2 py-1 text-[10px] rounded bg-red-600/80 hover:bg-red-600"
+                          className="btn-base btn-danger text-[10px] px-1.5 py-1"
                           title="Delete"
-                        >X</button>
+                        >🗑️</button>
                       </div>
                     </div>
-                    <p className="text-xs text-slate-400 mb-2">
-                      Priority: {task.priority}
-                    </p>
+                    
+                    {task.description && (
+                      <p className="text-xs text-secondary line-clamp-2 mb-3 line-through">{task.description}</p>
+                    )}
+                    
+                    <div className="flex items-center justify-between mb-3">
+                      <span className={`pill status-${task.status}`}>{task.priority || 'medium'}</span>
+                      <span className="mono-id text-faint">{task.id.slice(0,6)}</span>
+                    </div>
 
-                    <label className="px-2 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 cursor-pointer mr-2">
-                      Upload
-                      <input
-                        type="file"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            uploadAttachment(task.id, file);
-                            e.target.value = "";
-                          }
-                        }}
-                      />
-                    </label>
-
-                    <button
-                      onClick={() => updateTaskStatus(task.id, "in_progress")}
-                      className="px-2 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600"
-                    >
-                      Move Back
-                    </button>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {(attachmentsMap[task.id] || []).map((att) => (
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {(attachmentsMap[task.id] || []).slice(0, 2).map((att) => (
                         <button
                           key={att.id}
                           onClick={() => downloadAttachment(att.id)}
-                          className="px-2 py-1 text-[10px] rounded bg-slate-700/70 hover:bg-slate-600 border border-slate-600/50 hover:border-emerald-500/60 transition-colors"
+                          className="btn-base text-[10px] px-2 py-1 max-w-[80px] truncate"
+                          title={att.fileName}
                         >
                           {att.fileName}
                         </button>
                       ))}
+                      
                       {!attachmentsMap[task.id] && !attachmentsLoading[task.id] && (
                         <button
                           onClick={() => loadAttachments(task.id)}
-                          className="px-2 py-1 text-[10px] rounded bg-slate-750/70 hover:bg-slate-700 border border-dashed border-slate-600/60"
+                          className="btn-base text-[10px] px-2 py-1 opacity-60"
                         >Load</button>
                       )}
-                      {attachmentsLoading[task.id] && (
-                        <span className="text-[10px] text-emerald-400 animate-pulse">Loading…</span>
-                      )}
-                      {attachmentsMap[task.id] && attachmentsMap[task.id].length === 0 && (
-                        <span className="text-[10px] text-slate-500">No attachments</span>
-                      )}
                     </div>
+
+                    <button
+                      onClick={() => updateTaskStatus(task.id, "in_progress")}
+                      className="w-full btn-base text-xs py-2"
+                    >
+                      ← Reopen
+                    </button>
                   </div>
                 ))}
               </div>
@@ -839,33 +1107,142 @@ export default function DashboardPage() {
 
       </div>{/* END MAIN AREA */}
 
+      {showCreateProject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg card p-8 animate-fade-in">
+            <h3 className="text-xl font-bold text-primary mb-6">Create New Project</h3>
+            
+            <form onSubmit={handleCreateProject} className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-primary mb-2">
+                  Project Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  className="w-full px-4 py-3 bg-[var(--bg-base)] border border-[var(--border)] rounded-lg text-primary placeholder-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-transparent transition-colors"
+                  placeholder="Enter project name"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-primary mb-2">
+                  Description (optional)
+                </label>
+                <textarea
+                  value={newProjectDescription}
+                  onChange={(e) => setNewProjectDescription(e.target.value)}
+                  className="w-full px-4 py-3 bg-[var(--bg-base)] border border-[var(--border)] rounded-lg text-primary placeholder-[var(--text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-transparent transition-colors"
+                  rows={3}
+                  placeholder="Describe your project"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-primary mb-3">
+                  Project Template
+                </label>
+                <div className="grid grid-cols-1 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setProjectTemplate("blank")}
+                    className={`text-left p-3 rounded-lg border transition-colors ${
+                      projectTemplate === "blank" 
+                        ? "border-[var(--ring)] bg-[var(--ring)]/10" 
+                        : "border-[var(--border)] hover:border-[var(--border-accent)]"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-lg">📋</span>
+                      <div>
+                        <div className="font-medium text-primary">Blank Project</div>
+                        <div className="text-xs text-secondary">Start from scratch</div>
+                      </div>
+                    </div>
+                  </button>
+                  
+                  <button
+                    type="button"
+                    onClick={() => setProjectTemplate("kanban")}
+                    className={`text-left p-3 rounded-lg border transition-colors ${
+                      projectTemplate === "kanban" 
+                        ? "border-[var(--ring)] bg-[var(--ring)]/10" 
+                        : "border-[var(--border)] hover:border-[var(--border-accent)]"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-lg">📊</span>
+                      <div>
+                        <div className="font-medium text-primary">Kanban Board</div>
+                        <div className="text-xs text-secondary">Pre-configured board layout</div>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border)]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateProject(false);
+                    setNewProjectName("");
+                    setNewProjectDescription("");
+                    setProjectTemplate("blank");
+                  }}
+                  className="btn-base text-sm px-6 py-2"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creatingProject || !newProjectName.trim()}
+                  className="btn-base btn-accent text-sm px-6 py-2 transition-all hover:scale-[1.02] disabled:opacity-60 disabled:hover:scale-100"
+                >
+                  {creatingProject ? (
+                    <span className="flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      Creating...
+                    </span>
+                  ) : (
+                    "Create Project"
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {showEditModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-xl p-6 shadow-xl">
-            <h3 className="text-lg font-semibold mb-4">Edit Task</h3>
+          <div className="w-full max-w-md card p-6 animate-fade-in">
+            <h3 className="text-lg font-semibold text-primary mb-4">Edit Task</h3>
             <form onSubmit={handleSaveEdit} className="space-y-4">
               <div>
-                <label className="text-xs text-slate-400 mb-1 block">Title</label>
+                <label className="block text-xs font-medium text-secondary mb-1">Title</label>
                 <input
-                  className="w-full px-3 py-2 bg-slate-800 text-white rounded-lg border border-slate-700"
+                  className="w-full px-3 py-2 bg-[var(--bg-base)] border border-[var(--border)] rounded-lg text-primary focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-transparent transition-colors"
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
                   required
                 />
               </div>
               <div>
-                <label className="text-xs text-slate-400 mb-1 block">Description</label>
+                <label className="block text-xs font-medium text-secondary mb-1">Description</label>
                 <textarea
-                  className="w-full px-3 py-2 bg-slate-800 text-white rounded-lg border border-slate-700"
+                  className="w-full px-3 py-2 bg-[var(--bg-base)] border border-[var(--border)] rounded-lg text-primary focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-transparent transition-colors"
                   rows={4}
                   value={editDescription}
                   onChange={(e) => setEditDescription(e.target.value)}
                 />
               </div>
               <div>
-                <label className="text-xs text-slate-400 mb-1 block">Priority</label>
+                <label className="block text-xs font-medium text-secondary mb-1">Priority</label>
                 <select
-                  className="w-full px-3 py-2 bg-slate-800 text-white rounded-lg border border-slate-700"
+                  className="w-full px-3 py-2 bg-[var(--bg-base)] border border-[var(--border)] rounded-lg text-primary focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-transparent transition-colors"
                   value={editPriority}
                   onChange={(e) => setEditPriority(e.target.value)}
                 >
@@ -878,11 +1255,11 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => { setShowEditModal(false); setEditingTaskId(null); }}
-                  className="px-4 py-2 text-sm rounded-lg bg-slate-700 hover:bg-slate-600"
+                  className="btn-base text-sm px-4 py-2"
                 >Cancel</button>
                 <button
                   type="submit"
-                  className="px-4 py-2 text-sm rounded-lg bg-emerald-600 hover:bg-emerald-500 font-medium"
+                  className="btn-base btn-accent text-sm px-4 py-2 font-medium"
                 >Save Changes</button>
               </div>
             </form>

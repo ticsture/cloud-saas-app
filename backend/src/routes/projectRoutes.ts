@@ -75,4 +75,157 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
   }
 });
 
+// GET /projects/:id
+// Get a specific project with tasks summary
+router.get('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    const { id } = req.params;
+
+    const project = await prisma.project.findFirst({
+      where: {
+        id,
+        workspace: {
+          members: {
+            some: {
+              userId,
+            },
+          },
+        },
+      },
+      include: {
+        _count: {
+          select: {
+            tasks: true,
+          },
+        },
+        tasks: {
+          select: {
+            id: true,
+            status: true,
+            priority: true,
+          },
+        },
+      },
+    });
+
+    if (!project) {
+      return res.status(404).json({ message: 'Project not found' });
+    }
+
+    // Calculate task statistics
+    const taskStats = {
+      total: project._count.tasks,
+      todo: project.tasks.filter(t => t.status === 'todo').length,
+      in_progress: project.tasks.filter(t => t.status === 'in_progress').length,
+      done: project.tasks.filter(t => t.status === 'done').length,
+      high_priority: project.tasks.filter(t => t.priority === 'high').length,
+    };
+
+    const { tasks, _count, ...projectData } = project;
+    
+    return res.json({ 
+      project: {
+        ...projectData,
+        stats: taskStats,
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching project:', error);
+    return res.status(500).json({ message: 'Failed to fetch project' });
+  }
+});
+
+// PUT /projects/:id
+// Update a project
+router.put('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    const { id } = req.params;
+    const { name, description } = req.body;
+
+    // Check if user has access to this project
+    const existingProject = await prisma.project.findFirst({
+      where: {
+        id,
+        workspace: {
+          members: {
+            some: {
+              userId,
+            },
+          },
+        },
+      },
+    });
+
+    if (!existingProject) {
+      return res.status(404).json({ message: 'Project not found' });
+    }
+
+    const project = await prisma.project.update({
+      where: { id },
+      data: {
+        name: name || existingProject.name,
+        description: description ?? existingProject.description,
+      },
+    });
+
+    return res.json({ project });
+  } catch (error) {
+    console.error('Error updating project:', error);
+    return res.status(500).json({ message: 'Failed to update project' });
+  }
+});
+
+// DELETE /projects/:id
+// Delete a project (and all its tasks)
+router.delete('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    const { id } = req.params;
+
+    // Check if user has access to this project
+    const existingProject = await prisma.project.findFirst({
+      where: {
+        id,
+        workspace: {
+          members: {
+            some: {
+              userId,
+            },
+          },
+        },
+      },
+      include: {
+        _count: {
+          select: {
+            tasks: true,
+          },
+        },
+      },
+    });
+
+    if (!existingProject) {
+      return res.status(404).json({ message: 'Project not found' });
+    }
+
+    // Delete all tasks first, then the project
+    await prisma.task.deleteMany({
+      where: { projectId: id },
+    });
+
+    await prisma.project.delete({
+      where: { id },
+    });
+
+    return res.json({ 
+      message: 'Project deleted successfully',
+      deletedTasks: existingProject._count.tasks,
+    });
+  } catch (error) {
+    console.error('Error deleting project:', error);
+    return res.status(500).json({ message: 'Failed to delete project' });
+  }
+});
+
 export default router;
